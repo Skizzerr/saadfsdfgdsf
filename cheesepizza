@@ -1,0 +1,431 @@
+-- Coin Counter UI
+-- Right Shift = toggle open/close
+
+local Players       = game:GetService("Players")
+local UIS           = game:GetService("UserInputService")
+local RunService    = game:GetService("RunService")
+local TweenService  = game:GetService("TweenService")
+
+local player     = Players.LocalPlayer
+local playerGui  = player:WaitForChild("PlayerGui")
+local character  = player.Character or player.CharacterAdded:Wait()
+local rootPart   = character:WaitForChild("HumanoidRootPart")
+
+local COIN_VALUE   = 5
+local MAX_STUDS    = 500
+local currentRadius = math.huge
+local showArea     = false
+local areaDisc     = nil
+local guiOpen      = true
+local countCoins   -- forward declaration
+
+-- ─── ScreenGui ────────────────────────────────────────────────────────────────
+local sg = Instance.new("ScreenGui")
+sg.Name            = "CoinCounterUI"
+sg.ResetOnSpawn    = false
+sg.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+sg.Parent          = playerGui
+
+-- ─── Main Frame ───────────────────────────────────────────────────────────────
+local mf = Instance.new("Frame")
+mf.Name             = "Main"
+mf.Size             = UDim2.new(0, 195, 0, 218)
+mf.Position         = UDim2.new(0.5, -97, 0.4, -109)
+mf.BackgroundColor3 = Color3.fromRGB(13, 13, 18)
+mf.BorderSizePixel  = 0
+mf.ClipsDescendants = true
+mf.Parent           = sg
+Instance.new("UICorner", mf).CornerRadius = UDim.new(0, 10)
+local mfStroke = Instance.new("UIStroke", mf)
+mfStroke.Color     = Color3.fromRGB(70, 65, 110)
+mfStroke.Thickness = 1
+
+-- ─── Title Bar ────────────────────────────────────────────────────────────────
+local tb = Instance.new("Frame")
+tb.Size             = UDim2.new(1, 0, 0, 28)
+tb.BackgroundColor3 = Color3.fromRGB(22, 21, 32)
+tb.BorderSizePixel  = 0
+tb.ZIndex           = 2
+tb.Parent           = mf
+Instance.new("UICorner", tb).CornerRadius = UDim.new(0, 10)
+-- Fill bottom corners of title bar
+local tbFill = Instance.new("Frame")
+tbFill.Size             = UDim2.new(1, 0, 0.5, 0)
+tbFill.Position         = UDim2.new(0, 0, 0.5, 0)
+tbFill.BackgroundColor3 = Color3.fromRGB(22, 21, 32)
+tbFill.BorderSizePixel  = 0
+tbFill.ZIndex           = 2
+tbFill.Parent           = tb
+
+local titleLbl = Instance.new("TextLabel")
+titleLbl.Size               = UDim2.new(1, -55, 1, 0)
+titleLbl.Position           = UDim2.new(0, 10, 0, 0)
+titleLbl.BackgroundTransparency = 1
+titleLbl.Text               = "● COIN COUNTER"
+titleLbl.TextColor3         = Color3.fromRGB(230, 185, 50)
+titleLbl.TextSize           = 11
+titleLbl.Font               = Enum.Font.GothamBold
+titleLbl.TextXAlignment     = Enum.TextXAlignment.Left
+titleLbl.ZIndex             = 3
+titleLbl.Parent             = tb
+
+-- Exit button
+local exitBtn = Instance.new("TextButton")
+exitBtn.Size             = UDim2.new(0, 18, 0, 18)
+exitBtn.Position         = UDim2.new(1, -23, 0.5, -9)
+exitBtn.BackgroundColor3 = Color3.fromRGB(160, 45, 45)
+exitBtn.Text             = "✕"
+exitBtn.TextColor3       = Color3.fromRGB(255, 200, 200)
+exitBtn.TextSize         = 9
+exitBtn.Font             = Enum.Font.GothamBold
+exitBtn.BorderSizePixel  = 0
+exitBtn.ZIndex           = 4
+exitBtn.Parent           = tb
+Instance.new("UICorner", exitBtn).CornerRadius = UDim.new(0, 5)
+
+-- ─── Content padding frame ────────────────────────────────────────────────────
+local pad = Instance.new("Frame")
+pad.Size                = UDim2.new(1, -18, 1, -36)
+pad.Position            = UDim2.new(0, 9, 0, 32)
+pad.BackgroundTransparency = 1
+pad.Parent              = mf
+
+-- ─── Coin display box ─────────────────────────────────────────────────────────
+local box = Instance.new("Frame")
+box.Size             = UDim2.new(1, 0, 0, 52)
+box.BackgroundColor3 = Color3.fromRGB(20, 17, 8)
+box.BorderSizePixel  = 0
+box.Parent           = pad
+Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
+local boxStroke = Instance.new("UIStroke", box)
+boxStroke.Color     = Color3.fromRGB(160, 125, 25)
+boxStroke.Thickness = 1
+
+local capLbl = Instance.new("TextLabel")
+capLbl.Size               = UDim2.new(1, 0, 0, 18)
+capLbl.Position           = UDim2.new(0, 0, 0, 5)
+capLbl.BackgroundTransparency = 1
+capLbl.Text               = "TOTAL COINS"
+capLbl.TextColor3         = Color3.fromRGB(140, 110, 28)
+capLbl.TextSize           = 8
+capLbl.Font               = Enum.Font.GothamBold
+capLbl.TextXAlignment     = Enum.TextXAlignment.Center
+capLbl.Parent             = box
+
+local coinVal = Instance.new("TextLabel")
+coinVal.Size               = UDim2.new(1, 0, 0, 26)
+coinVal.Position           = UDim2.new(0, 0, 0, 21)
+coinVal.BackgroundTransparency = 1
+coinVal.Text               = "—"
+coinVal.TextColor3         = Color3.fromRGB(255, 210, 0)
+coinVal.TextSize           = 22
+coinVal.Font               = Enum.Font.GothamBold
+coinVal.Parent             = box
+
+local partsLbl = Instance.new("TextLabel")
+partsLbl.Size               = UDim2.new(1, 0, 0, 11)
+partsLbl.Position           = UDim2.new(0, 0, 0, 56)
+partsLbl.BackgroundTransparency = 1
+partsLbl.Text               = "press count to start"
+partsLbl.TextColor3         = Color3.fromRGB(90, 90, 110)
+partsLbl.TextSize           = 8
+partsLbl.Font               = Enum.Font.Gotham
+partsLbl.Parent             = pad
+
+-- ─── Radius label ─────────────────────────────────────────────────────────────
+local radLbl = Instance.new("TextLabel")
+radLbl.Size               = UDim2.new(1, 0, 0, 11)
+radLbl.Position           = UDim2.new(0, 0, 0, 74)
+radLbl.BackgroundTransparency = 1
+radLbl.Text               = "Radius:  ∞  studs"
+radLbl.TextColor3         = Color3.fromRGB(175, 175, 200)
+radLbl.TextSize           = 9
+radLbl.Font               = Enum.Font.GothamBold
+radLbl.TextXAlignment     = Enum.TextXAlignment.Left
+radLbl.Parent             = pad
+
+-- ─── Slider ───────────────────────────────────────────────────────────────────
+local sliderTrack = Instance.new("Frame")
+sliderTrack.Size             = UDim2.new(1, 0, 0, 5)
+sliderTrack.Position         = UDim2.new(0, 0, 0, 90)
+sliderTrack.BackgroundColor3 = Color3.fromRGB(38, 36, 55)
+sliderTrack.BorderSizePixel  = 0
+sliderTrack.Parent           = pad
+Instance.new("UICorner", sliderTrack).CornerRadius = UDim.new(1, 0)
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size             = UDim2.new(1, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(215, 170, 40)
+sliderFill.BorderSizePixel  = 0
+sliderFill.Parent           = sliderTrack
+Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
+
+local knob = Instance.new("Frame")
+knob.Size             = UDim2.new(0, 13, 0, 13)
+knob.Position         = UDim2.new(1, -6, 0.5, -6)
+knob.BackgroundColor3 = Color3.fromRGB(235, 235, 255)
+knob.BorderSizePixel  = 0
+knob.ZIndex           = 3
+knob.Parent           = sliderTrack
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+local minLbl = Instance.new("TextLabel")
+minLbl.Size               = UDim2.new(0, 8, 0, 9)
+minLbl.Position           = UDim2.new(0, 0, 0, 99)
+minLbl.BackgroundTransparency = 1
+minLbl.Text               = "1"
+minLbl.TextColor3         = Color3.fromRGB(80, 80, 100)
+minLbl.TextSize           = 8
+minLbl.Font               = Enum.Font.Gotham
+minLbl.Parent             = pad
+
+local maxLbl = Instance.new("TextLabel")
+maxLbl.Size               = UDim2.new(0, 8, 0, 9)
+maxLbl.Position           = UDim2.new(1, -8, 0, 99)
+maxLbl.BackgroundTransparency = 1
+maxLbl.Text               = "∞"
+maxLbl.TextColor3         = Color3.fromRGB(80, 80, 100)
+maxLbl.TextSize           = 8
+maxLbl.Font               = Enum.Font.Gotham
+maxLbl.Parent             = pad
+
+-- ─── Area toggle row ──────────────────────────────────────────────────────────
+local toggleRow = Instance.new("Frame")
+toggleRow.Size                = UDim2.new(1, 0, 0, 18)
+toggleRow.Position            = UDim2.new(0, 0, 0, 114)
+toggleRow.BackgroundTransparency = 1
+toggleRow.Parent              = pad
+
+local toggleLbl = Instance.new("TextLabel")
+toggleLbl.Size               = UDim2.new(1, -36, 1, 0)
+toggleLbl.BackgroundTransparency = 1
+toggleLbl.Text               = "Show area ring"
+toggleLbl.TextColor3         = Color3.fromRGB(165, 165, 185)
+toggleLbl.TextSize           = 9
+toggleLbl.Font               = Enum.Font.Gotham
+toggleLbl.TextXAlignment     = Enum.TextXAlignment.Left
+toggleLbl.Parent             = toggleRow
+
+local togBg = Instance.new("TextButton")
+togBg.Size             = UDim2.new(0, 28, 0, 14)
+togBg.Position         = UDim2.new(1, -28, 0.5, -7)
+togBg.BackgroundColor3 = Color3.fromRGB(45, 44, 62)
+togBg.Text             = ""
+togBg.BorderSizePixel  = 0
+togBg.ZIndex           = 2
+togBg.Parent           = toggleRow
+Instance.new("UICorner", togBg).CornerRadius = UDim.new(1, 0)
+
+local togKnob = Instance.new("Frame")
+togKnob.Size             = UDim2.new(0, 10, 0, 10)
+togKnob.Position         = UDim2.new(0, 2, 0.5, -5)
+togKnob.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+togKnob.BorderSizePixel  = 0
+togKnob.ZIndex           = 3
+togKnob.Parent           = togBg
+Instance.new("UICorner", togKnob).CornerRadius = UDim.new(1, 0)
+
+-- ─── Divider ──────────────────────────────────────────────────────────────────
+local divider = Instance.new("Frame")
+divider.Size             = UDim2.new(1, 0, 0, 1)
+divider.Position         = UDim2.new(0, 0, 0, 138)
+divider.BackgroundColor3 = Color3.fromRGB(38, 36, 55)
+divider.BorderSizePixel  = 0
+divider.Parent           = pad
+
+-- ─── Count button ─────────────────────────────────────────────────────────────
+local countBtn = Instance.new("TextButton")
+countBtn.Size             = UDim2.new(1, 0, 0, 28)
+countBtn.Position         = UDim2.new(0, 0, 0, 146)
+countBtn.BackgroundColor3 = Color3.fromRGB(210, 165, 28)
+countBtn.Text             = "COUNT COINS"
+countBtn.TextColor3       = Color3.fromRGB(12, 8, 0)
+countBtn.TextSize         = 10
+countBtn.Font             = Enum.Font.GothamBold
+countBtn.BorderSizePixel  = 0
+countBtn.Parent           = pad
+Instance.new("UICorner", countBtn).CornerRadius = UDim.new(0, 7)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  DRAG LOGIC
+-- ════════════════════════════════════════════════════════════════════════════
+local dragging, dragInput, dragStart, startPos
+
+tb.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging  = true
+        dragStart = inp.Position
+        startPos  = mf.Position
+        inp.Changed:Connect(function()
+            if inp.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+tb.InputChanged:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
+end)
+UIS.InputChanged:Connect(function(inp)
+    if inp == dragInput and dragging then
+        local d = inp.Position - dragStart
+        mf.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+                                 startPos.Y.Scale, startPos.Y.Offset + d.Y)
+    end
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  AREA DISC
+-- ════════════════════════════════════════════════════════════════════════════
+local function destroyDisc()
+    if areaDisc then areaDisc:Destroy(); areaDisc = nil end
+end
+
+local function buildDisc()
+    destroyDisc()
+    areaDisc               = Instance.new("Part")
+    areaDisc.Name          = "CoinAreaRing"
+    areaDisc.Shape         = Enum.PartType.Cylinder
+    areaDisc.Anchored      = true
+    areaDisc.CanCollide    = false
+    areaDisc.CastShadow    = false
+    areaDisc.Material      = Enum.Material.Neon
+    areaDisc.Color         = Color3.fromRGB(255, 200, 0)
+    areaDisc.Transparency  = 0.55
+    areaDisc.Parent        = workspace
+end
+
+local function refreshDisc()
+    if not showArea then return end
+    if not areaDisc then buildDisc() end
+    local r = currentRadius == math.huge and 9999 or currentRadius
+    areaDisc.Size  = Vector3.new(0.15, r * 2, r * 2)
+    areaDisc.CFrame = CFrame.new(rootPart.Position.X, rootPart.Position.Y - 2.8, rootPart.Position.Z)
+                      * CFrame.Angles(0, 0, math.pi / 2)
+end
+
+RunService.RenderStepped:Connect(function()
+    if showArea and areaDisc and rootPart then
+        areaDisc.CFrame = CFrame.new(rootPart.Position.X, rootPart.Position.Y - 2.8, rootPart.Position.Z)
+                          * CFrame.Angles(0, 0, math.pi / 2)
+    end
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  SLIDER LOGIC
+-- ════════════════════════════════════════════════════════════════════════════
+local function applyAlpha(a)
+    a = math.clamp(a, 0, 1)
+    sliderFill.Size     = UDim2.new(a, 0, 1, 0)
+    knob.Position       = UDim2.new(a, -6, 0.5, -6)
+    if a >= 0.99 then
+        currentRadius   = math.huge
+        radLbl.Text     = "Radius:  ∞  studs"
+    else
+        currentRadius   = math.max(1, math.floor(a * MAX_STUDS))
+        radLbl.Text     = "Radius:  " .. currentRadius .. "  studs"
+    end
+    refreshDisc()
+    if countCoins then countCoins() end
+end
+
+local slidingActive = false
+
+sliderTrack.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+        slidingActive = true
+        local a = math.clamp((inp.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+        applyAlpha(a)
+    end
+end)
+UIS.InputChanged:Connect(function(inp)
+    if slidingActive and inp.UserInputType == Enum.UserInputType.MouseMovement then
+        local a = math.clamp((inp.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+        applyAlpha(a)
+    end
+end)
+UIS.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then slidingActive = false end
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  AREA TOGGLE
+-- ════════════════════════════════════════════════════════════════════════════
+togBg.MouseButton1Click:Connect(function()
+    showArea = not showArea
+    if showArea then
+        TweenService:Create(togBg,   TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(210, 165, 28)}):Play()
+        TweenService:Create(togKnob, TweenInfo.new(0.12), {Position = UDim2.new(1, -12, 0.5, -5),
+                                                             BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        buildDisc(); refreshDisc()
+        if countCoins then countCoins() end
+    else
+        TweenService:Create(togBg,   TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(45, 44, 62)}):Play()
+        TweenService:Create(togKnob, TweenInfo.new(0.12), {Position = UDim2.new(0, 2, 0.5, -5),
+                                                             BackgroundColor3 = Color3.fromRGB(100, 100, 120)}):Play()
+        destroyDisc()
+        if countCoins then countCoins() end
+    end
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  COUNT COINS
+-- ════════════════════════════════════════════════════════════════════════════
+countCoins = function()
+    local items = workspace:FindFirstChild("Items")
+    if not items then
+        coinVal.Text  = "ERR"
+        partsLbl.Text = "workspace.Items not found"
+        return
+    end
+    local parts = 0
+    for _, obj in ipairs(items:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Coin2" then
+            if currentRadius == math.huge then
+                parts += 1
+            elseif (obj.Position - rootPart.Position).Magnitude <= currentRadius then
+                parts += 1
+            end
+        end
+    end
+    local total = parts * COIN_VALUE
+    coinVal.Text  = tostring(total)
+    partsLbl.Text = parts .. " part" .. (parts ~= 1 and "s" or "") .. "  ×5  =  " .. total
+    print(("[CoinCounter] %d parts → %d coins"):format(parts, total))
+end
+
+countBtn.MouseButton1Click:Connect(countCoins)
+countBtn.MouseEnter:Connect(function()
+    TweenService:Create(countBtn, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(245, 195, 50)}):Play()
+end)
+countBtn.MouseLeave:Connect(function()
+    TweenService:Create(countBtn, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(210, 165, 28)}):Play()
+end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  EXIT  &  RIGHT-SHIFT TOGGLE
+-- ════════════════════════════════════════════════════════════════════════════
+exitBtn.MouseButton1Click:Connect(function()
+    destroyDisc(); sg:Destroy()
+end)
+
+UIS.InputBegan:Connect(function(inp, gpe)
+    if inp.KeyCode == Enum.KeyCode.RightShift then
+        guiOpen  = not guiOpen
+        mf.Visible = guiOpen
+        if not guiOpen then destroyDisc()
+        elseif showArea then buildDisc(); refreshDisc() end
+    end
+end)
+
+-- Auto-refresh every 0.8 s
+local lastAutoCount = 0
+RunService.Heartbeat:Connect(function()
+    local now = tick()
+    if now - lastAutoCount >= 0.8 then
+        lastAutoCount = now
+        countCoins()
+    end
+end)
+
+-- Initialise slider to ∞
+applyAlpha(1)
+print("[CoinCounter] UI ready — Right Shift to toggle")
